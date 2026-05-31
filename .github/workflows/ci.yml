@@ -93,8 +93,7 @@ jobs:
           cd MLProject
           mlflow models build-docker \
             -m "runs:/${{ env.MLFLOW_RUN_ID }}/model" \
-            -n "${{ env.IMAGE_NAME }}:latest" \
-            --enable-mlserver
+            -n "${{ env.IMAGE_NAME }}:latest"
 
       # ── 11. Log in to Docker Hub ────────────────────────────────────────────
       - name: Log in to Docker Hub
