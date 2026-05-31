@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import mlflow
 import mlflow.sklearn
-import dagshub
 import os
 import logging
 import json
@@ -25,10 +24,16 @@ import joblib
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
-# ─── DagsHub / MLflow ─────────────────────────────────────────────────────────
-DAGSHUB_USER = os.getenv("DAGSHUB_USER", "nama_owner")
-DAGSHUB_REPO = os.getenv("DAGSHUB_REPO", "nama_repo")
-dagshub.init(repo_owner=DAGSHUB_USER, repo_name=DAGSHUB_REPO, mlflow=True)
+# ─── MLflow Tracking (token-based, no OAuth) ──────────────────────────────────
+DAGSHUB_USER = os.getenv("DAGSHUB_USER", "Cutrenatha")
+DAGSHUB_REPO = os.getenv("DAGSHUB_REPO", "Eksperimen_SML_Cut-Renatha-Fadhilah")
+DAGSHUB_TOKEN = os.getenv("DAGSHUB_TOKEN", "")
+
+os.environ["MLFLOW_TRACKING_URI"]      = f"https://dagshub.com/{DAGSHUB_USER}/{DAGSHUB_REPO}.mlflow"
+os.environ["MLFLOW_TRACKING_USERNAME"] = DAGSHUB_USER
+os.environ["MLFLOW_TRACKING_PASSWORD"] = DAGSHUB_TOKEN
+
+mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
 mlflow.set_experiment("Credit Scoring - CI")
 
 
@@ -76,14 +81,12 @@ def main(args):
     logger.info(f"Train: {X_train.shape} | Test: {X_test.shape}")
 
     with mlflow.start_run(run_name="RF_CI_Run") as run:
-        # ── Params ────────────────────────────────────────────────────────────
         mlflow.log_params({
             "n_estimators": args.n_estimators,
             "max_depth": args.max_depth,
             "random_state": args.random_state,
         })
 
-        # ── Train ─────────────────────────────────────────────────────────────
         model = RandomForestClassifier(
             n_estimators=args.n_estimators,
             max_depth=args.max_depth,
@@ -94,11 +97,9 @@ def main(args):
         model.fit(X_train, y_train)
         elapsed = time.time() - start
 
-        # ── Predict ───────────────────────────────────────────────────────────
         y_pred      = model.predict(X_test)
         y_pred_prob = model.predict_proba(X_test)[:, 1]
 
-        # ── Metrics ───────────────────────────────────────────────────────────
         acc     = accuracy_score(y_test, y_pred)
         prec    = precision_score(y_test, y_pred, average="weighted", zero_division=0)
         rec     = recall_score(y_test, y_pred, average="weighted", zero_division=0)
@@ -122,14 +123,12 @@ def main(args):
         })
         logger.info(f"Metrics: Acc={acc:.4f} F1={f1:.4f} AUC={auc:.4f}")
 
-        # ── Model ─────────────────────────────────────────────────────────────
         mlflow.sklearn.log_model(
             sk_model=model,
             artifact_path="model",
             registered_model_name="CreditScoringRF_CI",
         )
 
-        # ── Artifacts ─────────────────────────────────────────────────────────
         mlflow.log_artifact(save_confusion_matrix(y_test, y_pred))
         mlflow.log_artifact(save_feature_importance(model, list(X_train.columns)))
 
@@ -138,12 +137,10 @@ def main(args):
             json.dump(report, f, indent=2)
         mlflow.log_artifact("classification_report.json")
 
-        # Save model locally for Docker
         os.makedirs("model", exist_ok=True)
         joblib.dump(model, "model/model.pkl")
         mlflow.log_artifact("model/model.pkl", artifact_path="model")
 
-        # Write run_id for downstream steps
         with open("latest_run_id.txt", "w") as f:
             f.write(run.info.run_id)
 
