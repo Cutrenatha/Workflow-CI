@@ -87,13 +87,18 @@ jobs:
             MLProject/latest_run_id.txt
           retention-days: 30
 
-      # ── 10. Build Docker Model ──────────────────────────────────────────────
+            # ── 10. Build Docker Model ──────────────────────────────────────────────
       - name: Build Docker Model
         run: |
-          cd MLProject
-          mlflow models build-docker \
-            -m "runs:/${{ env.MLFLOW_RUN_ID }}/model" \
-            -n "${{ env.IMAGE_NAME }}:latest"
+          docker build -t ${{ env.IMAGE_NAME }}:latest - <<'EOF'
+          FROM python:3.12-slim
+          WORKDIR /app
+          RUN pip install mlflow==2.19.0 scikit-learn==1.5.2 pandas==2.2.3 numpy==1.26.4 joblib==1.4.2
+          COPY MLProject/model/ /app/model/
+          ENV MLFLOW_TRACKING_URI=${{ env.MLFLOW_TRACKING_URI }}
+          EXPOSE 8080
+          CMD ["mlflow", "models", "serve", "-m", "/app/model", "--host", "0.0.0.0", "--port", "8080", "--no-conda"]
+          EOF
 
       # ── 11. Log in to Docker Hub ────────────────────────────────────────────
       - name: Log in to Docker Hub
