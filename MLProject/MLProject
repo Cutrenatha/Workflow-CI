@@ -23,11 +23,4 @@ entry_points:
       random_state:
         type: int
         default: 42
-    command: >
-      python modelling.py
-        --train_path {train_path}
-        --test_path {test_path}
-        --target_col {target_col}
-        --n_estimators {n_estimators}
-        --max_depth {max_depth}
-        --random_state {random_state}
+    command: "python modelling.py --train_path {train_path} --test_path {test_path} --target_col {target_col} --n_estimators {n_estimators} --max_depth {max_depth} --random_state {random_state}"
