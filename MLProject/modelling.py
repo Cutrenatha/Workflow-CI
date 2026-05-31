@@ -34,8 +34,6 @@ os.environ["MLFLOW_TRACKING_USERNAME"] = DAGSHUB_USER
 os.environ["MLFLOW_TRACKING_PASSWORD"] = DAGSHUB_TOKEN
 
 mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
-mlflow.set_experiment("Credit Scoring - CI")
-
 
 # ─── Plot Helpers ─────────────────────────────────────────────────────────────
 
