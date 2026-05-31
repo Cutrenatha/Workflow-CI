@@ -20,17 +20,14 @@ jobs:
       IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/credit-scoring-model
 
     steps:
-      # ── 1. Checkout ─────────────────────────────────────────────────────────
       - name: Run actions/checkout@v3
         uses: actions/checkout@v3
 
-      # ── 2. Python Setup ─────────────────────────────────────────────────────
       - name: Set up Python 3.12.7
         uses: actions/setup-python@v4
         with:
           python-version: "3.12.7"
 
-      # ── 3. Check Env ────────────────────────────────────────────────────────
       - name: Check Env
         run: |
           python --version
@@ -38,44 +35,27 @@ jobs:
           echo "DAGSHUB_USER=$DAGSHUB_USER"
           echo "DAGSHUB_REPO=$DAGSHUB_REPO"
 
-      # ── 4. Install Dependencies ─────────────────────────────────────────────
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install mlflow==2.19.0 dagshub==0.3.25 scikit-learn==1.5.2 \
-                      pandas==2.2.3 numpy==1.26.4 matplotlib==3.9.2 \
-                      seaborn==0.13.2 joblib==1.4.2 conda-lock
+          pip install mlflow==2.19.0 scikit-learn==1.5.2 pandas==2.2.3 numpy==1.26.4 matplotlib==3.9.2 seaborn==0.13.2 joblib==1.4.2
 
-      # ── 5. Set MLflow Tracking URI ──────────────────────────────────────────
       - name: Set MLflow Tracking URI
         run: |
           echo "MLFLOW_TRACKING_URI=https://dagshub.com/${DAGSHUB_USER}/${DAGSHUB_REPO}.mlflow" >> $GITHUB_ENV
 
-      # ── 6. Run MLflow Project ───────────────────────────────────────────────
       - name: Run mlflow project
         run: |
           cd MLProject
-          mlflow run . --env-manager=local \
-            -P train_path=./credit_scoring_preprocessing/train.csv \
-            -P test_path=./credit_scoring_preprocessing/test.csv \
-            -P target_col=Risk \
-            -P n_estimators=100 \
-            -P max_depth=10 \
-            -P random_state=42
+          mlflow run . --env-manager=local -P train_path=./credit_scoring_preprocessing/train.csv -P test_path=./credit_scoring_preprocessing/test.csv -P target_col=Risk -P n_estimators=100 -P max_depth=10 -P random_state=42
 
-      # ── 7. Get Latest MLflow run_id ─────────────────────────────────────────
       - name: Get latest MLflow run_id
         run: |
           RUN_ID=$(cat MLProject/latest_run_id.txt)
           echo "MLFLOW_RUN_ID=$RUN_ID" >> $GITHUB_ENV
           echo "Latest Run ID: $RUN_ID"
 
-      # ── 8. Install Python dependencies (for artifact upload) ────────────────
-      - name: Install Python dependencies
-        run: pip install google-auth google-auth-oauthlib google-api-python-client
-
-      # ── 9. Upload Artifacts to GitHub ───────────────────────────────────────
-      - name: Upload to Google Drive
+      - name: Upload to GitHub
         uses: actions/upload-artifact@v4
         with:
           name: mlflow-artifacts-${{ github.run_id }}
@@ -83,57 +63,46 @@ jobs:
             MLProject/training_confusion_matrix.png
             MLProject/feature_importance.png
             MLProject/classification_report.json
-            MLProject/model/
             MLProject/latest_run_id.txt
           retention-days: 30
 
-            # ── 10. Build Docker Model ──────────────────────────────────────────────
       - name: Build Docker Model
         run: |
-          docker build -t ${{ env.IMAGE_NAME }}:latest - <<'EOF'
+          cat > Dockerfile << 'DOCKEREOF'
           FROM python:3.12-slim
           WORKDIR /app
-          RUN pip install mlflow==2.19.0 scikit-learn==1.5.2 pandas==2.2.3 numpy==1.26.4 joblib==1.4.2
-          COPY MLProject/model/ /app/model/
-          ENV MLFLOW_TRACKING_URI=${{ env.MLFLOW_TRACKING_URI }}
+          RUN pip install --no-cache-dir mlflow==2.19.0 scikit-learn==1.5.2 pandas==2.2.3 numpy==1.26.4 joblib==1.4.2
           EXPOSE 8080
-          CMD ["mlflow", "models", "serve", "-m", "/app/model", "--host", "0.0.0.0", "--port", "8080", "--no-conda"]
-          EOF
+          CMD ["mlflow", "models", "serve", "--host", "0.0.0.0", "--port", "8080", "--no-conda", "--env-manager=local"]
+          DOCKEREOF
+          docker build -t ${{ env.IMAGE_NAME }}:latest .
 
-      # ── 11. Log in to Docker Hub ────────────────────────────────────────────
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # ── 12. Tag Docker Image ────────────────────────────────────────────────
       - name: Tag Docker Image
         run: |
-          docker tag ${{ env.IMAGE_NAME }}:latest \
-                     ${{ env.IMAGE_NAME }}:run-${{ github.run_number }}
+          docker tag ${{ env.IMAGE_NAME }}:latest ${{ env.IMAGE_NAME }}:run-${{ github.run_number }}
 
-      # ── 13. Push Docker Image ───────────────────────────────────────────────
       - name: Push Docker Image
         run: |
           docker push ${{ env.IMAGE_NAME }}:latest
           docker push ${{ env.IMAGE_NAME }}:run-${{ github.run_number }}
 
-      # ── 14. Post Log in to Docker Hub ───────────────────────────────────────
       - name: Post Log in to Docker Hub
         if: always()
         run: docker logout
 
-      # ── 15. Post Set up Python ──────────────────────────────────────────────
       - name: Post Set up Python 3.12.7
         if: always()
         run: echo "Post step complete"
 
-      # ── 16. Post Checkout ────────────────────────────────────────────────────
       - name: Post Run actions/checkout@v3
         if: always()
         run: echo "Checkout post step complete"
 
-      # ── 17. Complete ─────────────────────────────────────────────────────────
       - name: Complete job
         run: echo "CI pipeline completed successfully!"
