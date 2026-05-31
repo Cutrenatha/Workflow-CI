@@ -1,0 +1,33 @@
+name: credit-scoring-mlproject
+
+conda_env: conda.yaml
+
+entry_points:
+  main:
+    parameters:
+      train_path:
+        type: str
+        default: "./credit_scoring_preprocessing/train.csv"
+      test_path:
+        type: str
+        default: "./credit_scoring_preprocessing/test.csv"
+      target_col:
+        type: str
+        default: "Risk"
+      n_estimators:
+        type: int
+        default: 100
+      max_depth:
+        type: int
+        default: 10
+      random_state:
+        type: int
+        default: 42
+    command: >
+      python modelling.py
+        --train_path {train_path}
+        --test_path {test_path}
+        --target_col {target_col}
+        --n_estimators {n_estimators}
+        --max_depth {max_depth}
+        --random_state {random_state}
